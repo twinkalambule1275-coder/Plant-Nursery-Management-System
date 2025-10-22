@@ -1,5 +1,5 @@
+// js/home.js (Existing code)
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if user is logged in
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
 
@@ -8,16 +8,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Set username in navigation
-    document.getElementById('username').textContent = user.username;
-
-    // Show admin link if user is admin
-    if (user.role === 'ROLE_ADMIN') {
-        document.getElementById('adminLink').style.display = 'inline';
-        document.getElementById('adminLink').href = 'admin/dashboard.html';
+    // This username is for the home page navbar, if you display it.
+    // The dashboard's user-initial takes precedence on the dashboard page.
+    const usernameElement = document.getElementById('username');
+    if (usernameElement) { // Check if element exists
+        usernameElement.textContent = user.username;
     }
 
-    // Handle logout
+
+    // Show admin link if user is admin
+    const adminLink = document.getElementById('adminLink');
+    if (adminLink && user.role === 'ROLE_ADMIN') { // Check if element exists
+        adminLink.style.display = 'inline';
+        adminLink.href = 'admin/dashboard.html'; // Ensure this points correctly
+    } else if (adminLink) {
+        adminLink.style.display = 'none';
+    }
+
     document.getElementById('logout').addEventListener('click', (e) => {
         e.preventDefault();
         localStorage.removeItem('token');

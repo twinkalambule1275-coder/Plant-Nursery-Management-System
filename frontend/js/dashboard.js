@@ -1,7 +1,10 @@
 import { API_BASE_URL } from './config.js';
 
+let plants = [];
+let currentPage = 1;
+const pageSize = 5;
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if user is logged in
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
 
@@ -9,163 +12,181 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'login.html';
         return;
     }
+    
+    console.log('User object from localStorage:', user);
 
-    // Set username in navigation
-    document.getElementById('username').textContent = user.username;
+    document.getElementById('user-initial').textContent = user.username.charAt(0).toUpperCase();
 
-    // Show admin link if user is admin
+    const dropdownAdminLink = document.getElementById('dropdownAdminLink');
+    const createPlantButton = document.getElementById('createPlantButton');
     if (user.role === 'ROLE_ADMIN') {
-        document.getElementById('adminLink').style.display = 'inline';
-        document.getElementById('adminLink').href = 'admin/dashboard.html';
+        if (dropdownAdminLink) dropdownAdminLink.style.display = 'block';
+        if (createPlantButton) createPlantButton.style.display = 'inline-block';
+    } else {
+        if (dropdownAdminLink) dropdownAdminLink.style.display = 'none';
+        if (createPlantButton) createPlantButton.style.display = 'none';
     }
 
-    // Initialize the dashboard
     loadPlants();
-    setupEventListeners();
 });
-
-let plants = []; // Store all plants
-let selectedPlants = new Set(); // Store selected plant IDs
-
-function setupEventListeners() {
-    // Search functionality
-    document.getElementById('searchInput').addEventListener('input', filterPlants);
-
-    // Select all checkbox
-    document.getElementById('selectAllCheckbox').addEventListener('change', handleSelectAll);
-
-    // Logout handler
-    document.getElementById('logout').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = 'login.html';
-    });
-
-    // Proceed to checkout
-    document.getElementById('proceedToCheckout').addEventListener('click', handleCheckout);
-}
 
 async function loadPlants() {
     try {
-        const response = await fetch(`${API_BASE_URL}/plants`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
+        const response = await fetch(`${API_BASE_URL}/plants?page=${currentPage}&size=${pageSize}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-
         if (response.ok) {
-            plants = await response.json();
+            const data = await response.json();
+            plants = data.content || [];
             displayPlants(plants);
+            updatePaginationControls(data.totalPages);
         } else {
             throw new Error('Failed to load plants');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Failed to load plants');
+        displayPlants([]);
     }
 }
 
 function displayPlants(plantsToDisplay) {
-    const grid = document.getElementById('plantGrid');
-    grid.innerHTML = '';
-    const template = document.getElementById('plantCardTemplate');
-
-    plantsToDisplay.forEach(plant => {
-        const card = template.content.cloneNode(true);
-        
-        // Set plant data
-        card.querySelector('.plant-name').textContent = plant.name;
-        card.querySelector('.plant-description').textContent = plant.description;
-        card.querySelector('.price').textContent = `$${plant.price.toFixed(2)}`;
-        card.querySelector('.stock').textContent = `Stock: ${plant.stock}`;
-
-        // Setup checkbox
-        const checkbox = card.querySelector('.plant-checkbox');
-        checkbox.value = plant.id;
-        checkbox.checked = selectedPlants.has(plant.id);
-        checkbox.addEventListener('change', () => handlePlantSelection(plant));
-
-        // Setup buy button
-        const buyButton = card.querySelector('.btn-buy');
-        buyButton.addEventListener('click', () => handleBuyNow(plant));
-
-        grid.appendChild(card);
-    });
-
-    updateCartSummary();
-}
-
-function handlePlantSelection(plant) {
-    if (selectedPlants.has(plant.id)) {
-        selectedPlants.delete(plant.id);
+    const tableBody = document.getElementById('plantTableBody');
+    tableBody.innerHTML = '';
+    if (plantsToDisplay.length === 0) {
+        // "No data available" मैसेज को 5 कॉलम तक फैलाएं
+        tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px;">No data available</td></tr>`;
     } else {
-        selectedPlants.add(plant.id);
+        plantsToDisplay.forEach(plant => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><img src="${plant.image || 'images/placeholder.jpg'}" alt="${plant.name}" class="plant-thumbnail"></td>
+                <td class="plant-name">${plant.name}</td>
+                <td>$${plant.price ? plant.price.toFixed(2) : '0.00'}</td>
+                <td>${plant.stock || 0}</td>
+                <td class="action-buttons">
+                    <button class="btn-edit" onclick="editPlantLogic(${plant.id})">Edit</button>
+                    <button class="btn-delete" onclick="deletePlantLogic(${plant.id})">Delete</button>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
     }
-    updateCartSummary();
 }
 
-function handleSelectAll(event) {
-    const isChecked = event.target.checked;
-    const checkboxes = document.querySelectorAll('.plant-checkbox');
+function updatePaginationControls(totalPages) {
+    document.getElementById('currentPage').textContent = currentPage;
+    document.getElementById('prevPage').disabled = (currentPage === 1);
+    document.getElementById('nextPage').disabled = (!totalPages || currentPage === totalPages);
+}
 
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = isChecked;
-        const plantId = parseInt(checkbox.value);
-        if (isChecked) {
-            selectedPlants.add(plantId);
+// ===================================================================
+// FIX: HTML से कॉल करने के लिए सभी फंक्शन को GLOBAL (WINDOW) बनाएं
+// ===================================================================
+
+window.toggleDropdownLogic = () => {
+    const dd = document.getElementById('user-dropdown');
+    if (dd) {
+        dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
+    }
+};
+
+window.logoutLogic = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+};
+
+window.showCreatePlantModalLogic = () => {
+    document.getElementById('modalTitle').textContent = 'Add New Plant';
+    document.getElementById('plantForm').reset();
+    document.getElementById('plantId').value = '';
+    document.getElementById('plantModal').style.display = 'flex';
+};
+
+window.closePlantModalLogic = () => {
+    document.getElementById('plantModal').style.display = 'none';
+};
+
+window.changePageLogic = (direction) => {
+    currentPage += direction;
+    loadPlants();
+};
+
+window.filterPlantsLogic = () => {
+    console.log("Searching for:", document.getElementById('searchInput').value);
+    // यहां आप API को फिर से कॉल करने का लॉजिक जोड़ सकते हैं
+};
+
+window.handlePlantFormSubmit = async (event) => {
+    event.preventDefault();
+    const plantId = document.getElementById('plantId').value;
+    const method = plantId ? 'PUT' : 'POST';
+    const url = plantId ? `${API_BASE_URL}/plants/${plantId}` : `${API_BASE_URL}/plants`;
+
+    const plantData = {
+        name: document.getElementById('plantName').value,
+        price: parseFloat(document.getElementById('plantPrice').value),
+        stock: parseInt(document.getElementById('plantStock').value),
+        image: document.getElementById('plantImage').value
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(plantData)
+        });
+        if (response.ok) {
+            window.closePlantModalLogic();
+            loadPlants();
         } else {
-            selectedPlants.delete(plantId);
+            alert('Failed to save plant.');
         }
-    });
-
-    updateCartSummary();
-}
-
-function filterPlants(event) {
-    const searchTerm = event.target.value.toLowerCase();
-    const filteredPlants = plants.filter(plant => 
-        plant.name.toLowerCase().includes(searchTerm) ||
-        plant.description.toLowerCase().includes(searchTerm)
-    );
-    displayPlants(filteredPlants);
-}
-
-function updateCartSummary() {
-    const selectedCount = selectedPlants.size;
-    const totalPrice = Array.from(selectedPlants)
-        .map(id => plants.find(p => p.id === id))
-        .reduce((sum, plant) => sum + plant.price, 0);
-
-    document.getElementById('selectedCount').textContent = selectedCount;
-    document.getElementById('totalPrice').textContent = totalPrice.toFixed(2);
-    document.getElementById('cartCount').textContent = selectedCount;
-    document.getElementById('cartSummary').style.display = selectedCount > 0 ? 'flex' : 'none';
-}
-
-function handleBuyNow(plant) {
-    selectedPlants.clear();
-    selectedPlants.add(plant.id);
-    updateCartSummary();
-    handleCheckout();
-}
-
-async function handleCheckout() {
-    if (selectedPlants.size === 0) {
-        alert('Please select at least one plant');
-        return;
+    } catch (error) {
+        console.error('Error saving plant:', error);
     }
+};
+// फॉर्म सबमिशन को हैंडल करने के लिए इवेंट लिस्नर जोड़ें
+document.getElementById('plantForm').addEventListener('submit', window.handlePlantFormSubmit);
 
-    const selectedItems = Array.from(selectedPlants).map(id => {
-        const plant = plants.find(p => p.id === id);
-        return {
-            plantId: plant.id,
-            quantity: 1,
-            price: plant.price
-        };
-    });
 
-    // Store selected items in localStorage for the checkout page
-    localStorage.setItem('checkoutItems', JSON.stringify(selectedItems));
-    window.location.href = 'checkout.html';
-}
+window.editPlantLogic = async (plantId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/plants/${plantId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (response.ok) {
+            const plant = await response.json();
+            document.getElementById('modalTitle').textContent = 'Edit Plant';
+            document.getElementById('plantId').value = plant.id;
+            document.getElementById('plantName').value = plant.name;
+            document.getElementById('plantPrice').value = plant.price;
+            document.getElementById('plantStock').value = plant.stock;
+            document.getElementById('plantImage').value = plant.image || '';
+            document.getElementById('plantModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Failed to fetch plant for editing:', error);
+    }
+};
+
+window.deletePlantLogic = async (plantId) => {
+    if (!confirm('Are you sure you want to delete this plant?')) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/plants/${plantId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (response.ok) {
+            loadPlants();
+        } else {
+            alert('Failed to delete plant.');
+        }
+    } catch (error) {
+        console.error('Failed to delete plant:', error);
+    }
+};
