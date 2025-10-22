@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Plant Nursery Management</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">Plant Nursery</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="#" id="adminLink" style="display: none;">Admin Panel</a>
+            <a href="#" id="cartButton">Cart <span id="cartCount">0</span></a>
+            <a href="#" id="username"></a>
+            <a href="#" id="logout">Logout</a>
+        </div>
+        <div class="user-info">
+            <div class="user-icon" onclick="toggleDropdown()">
+               <span id="user-initial">U</span>
+            </div>
+            <div id="user-dropdown" class="dropdown-content" style="display: none;">
+               <button onclick="window.location.href='admin/dashboard.html'">Admin</button>
+               <button onclick="logout()">Logout</button>
+            </div>
+          </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="filters">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search plants..." oninput="filterPlants()">
+            </div>
+            <div class="select-all">
+                <input type="checkbox" id="selectAllCheckbox">
+                <label for="selectAllCheckbox">Select All</label>
+            </div>
+        </div>
+
+        <div class="plant-grid" id="plantGrid">
+            <!-- Plants will be loaded here -->
+        </div>
+
+        <div class="cart-summary" id="cartSummary" style="display: none;">
+            <div class="cart-info">
+                <p>Selected Items: <span id="selectedCount">0</span></p>
+                <p>Total Price: $<span id="totalPrice">0.00</span></p>
+            </div>
+            <button id="proceedToCheckout" class="btn-primary">Proceed to Checkout</button>
+        </div>
+
+        <table id="plantTable">
+            <thead>
+               <tr>
+                 <th>Image</th>
+                 <th>Name</th>
+                 <th>Price</th>
+                 <th>Stock</th>
+                 <th>Actions</th>
+               </tr>
+            </thead>
+            <tbody id="plantTableBody">
+              <script>
+                function displayPlants(plants) {
+                   const tableBody = document.getElementById('plantTableBody');
+                   tableBody.innerHTML = '';
+                   if (plants.length === 0) {
+                       const row = document.createElement('tr');
+                       const cell = document.createElement('td');
+                       cell.colSpan = 5;
+                       cell.textContent = 'No data available';
+                       row.appendChild(cell);
+                       tableBody.appendChild(row);
+                   } else {
+                       plants.forEach(plant => {
+                          const row = document.createElement('tr');
+                          row.innerHTML = `
+                              <td><img src="${plant.image}" alt="Plant Image" class="plant-thumbnail"></td>
+                              <td class="plant-name">${plant.name}</td>
+                              <td>${plant.price}</td>
+                              <td>${plant.stock}</td>
+                              <td>
+                                  <button onclick="editPlant(${plant.id})">Edit</button>
+                                  <button onclick="deletePlant(${plant.id})">Delete</button>
+                              </td>
+                          `;
+                          tableBody.appendChild(row);
+                       });
+                   }
+                }
+              </script>
+            </tbody>
+          </table>
+          <!-- Create Plant Button (Admin Only) -->
+          <button class="admin-only" onclick="window.location.href='plant-create.html'">Create Plant</button>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination">
+      <button id="prevPage" onclick="changePage(-1)">Previous</button>
+      <span id="currentPage">1</span>
+      <button id="nextPage" onclick="changePage(1)">Next</button>
+    </div>
+
+    <template id="plantCardTemplate">
+        <div class="plant-card">
+            <div class="checkbox-container">
+                <input type="checkbox" class="plant-checkbox">
+            </div>
+            <div class="plant-image">
+                <img src="images/placeholder.jpg" alt="Plant Image">
+            </div>
+            <div class="plant-info">
+                <h3 class="plant-name"></h3>
+                <p class="plant-description"></p>
+                <div class="plant-price-stock">
+                    <span class="price"></span>
+                    <span class="stock"></span>
+                </div>
+                <button class="btn-buy">Buy Now</button>
+            </div>
+        </div>
+    </template>
+
+    <script type="module" src="js/dashboard.js"></script>
+    <script>
+        let currentPage = 1;
+        const pageSize = 10;
+
+        function changePage(direction) {
+            currentPage += direction;
+            loadPlants();
+        }
+
+        function loadPlants() {
+            fetch(`${API_BASE_URL}/plants?page=${currentPage}&size=${pageSize}`)
+                .then(response => response.json())
+                .then(data => displayPlants(data));
+        }
+
+        function toggleDropdown() {
+            const dd = document.getElementById('user-dropdown');
+            dd.style.display = (dd.style.display === 'none') ? 'block' : 'none';
+        }
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+
+        // Check user role and hide create plant button for non-admins
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user.role !== 'ROLE_ADMIN') {
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+        }
+    </script>
+</body>
+</html>
